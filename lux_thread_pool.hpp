@@ -23,6 +23,7 @@ namespace lux
 	enum : tstate_t
 	{
 		TS_RUNNING,
+		TS_PAUSED,
 		TS_TERMINATED
 	};
 
@@ -81,6 +82,9 @@ namespace lux
 		 */
 		template< class Fn, class... Args >
 		std::future<std::invoke_result_t<Fn, Args...>> submit(Fn&& fn, Args&&... args);
+
+		bool pause() noexcept;
+		bool unpause() noexcept;
 
 		/**
 		 * @brief Waits for every running and queued task to be executed.
@@ -180,7 +184,7 @@ namespace lux
 
 template< class Fn, class... Args >
 LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool::submit(Fn&& fn, Args&&... args) {
-	if (_state == TS_TERMINATED)
+	if (state() == TS_TERMINATED)
 		throw std::runtime_error{ "thread pool has been terminated" };
 
 	using res_type = std::invoke_result_t<Fn, Args...>;
@@ -263,7 +267,8 @@ struct lux::thread_pool::NODE
 
 LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	//	sets to TERMINATED
-	_state = TS_TERMINATED;
+	_state.store(TS_TERMINATED);
+	_state.notify_all();
 	//	notifies blocked workers
 	_size.store(1);
 	_size.notify_all();
@@ -305,6 +310,11 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 		{
 		case TS_TERMINATED:
 			return;
+
+		case TS_PAUSED:
+			_state.wait(TS_PAUSED);
+			break;
+
 		case TS_RUNNING: {
 			//	tries to reserve an element
 			auto sz = _size.load();
@@ -364,6 +374,20 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::unique_ptr<vTask>&& task) {
 		//	notifies
 		_size.notify_all();
 }
+
+LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
+	tstate_t tmp = TS_RUNNING;
+	return _state.compare_exchange_strong(tmp, TS_PAUSED);
+}
+LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
+	tstate_t tmp = TS_PAUSED;
+	if (_state.compare_exchange_strong(tmp, TS_RUNNING)) {
+		_state.notify_all();
+		return true;
+	}
+
+	return false;
+}
 LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 	//	thread pool has been terminated
 	while (true) {
@@ -377,7 +401,7 @@ LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 			//	no running task
 			//	gets queued tasks
 			auto qt = queued_tasks();
-			if (qt == 0) {
+			if (qt == 0 || state() == TS_PAUSED) {
 				//	no queued tasks
 				break;
 			}
