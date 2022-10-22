@@ -68,7 +68,7 @@ namespace lux
 
 	private:
 		void _worker_main(tsize_t pos, std::stop_token stoken);
-		void _insert(std::unique_ptr<class vTask>&& task);
+		void _insert(std::shared_ptr<class vTask>&& task);
 
 	public:
 		/**
@@ -189,7 +189,7 @@ LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool:
 
 	using res_type = std::invoke_result_t<Fn, Args...>;
 
-	auto task = std::make_unique<lux::Task<res_type>>( std::forward<Fn>(fn), std::forward<Args>(args)... );
+	auto task = std::make_shared<lux::Task<res_type>>( std::forward<Fn>(fn), std::forward<Args>(args)... );
 	auto ftr = task->future();
 
 	_insert(std::move(task));
@@ -262,7 +262,7 @@ LUX_CURR_INLINE void lux::Task<Ty>::operator()() noexcept {
 struct lux::thread_pool::NODE
 {
 	std::atomic<NODE*> _next;
-	std::unique_ptr<lux::vTask> _data;
+	std::shared_ptr<lux::vTask> _data;
 };
 
 LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
@@ -338,7 +338,7 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 				//	increases the working threads
 				++_running;
 				//	runs the task
-				(*task)();
+				if (task) (*task)();
 
 				//	notifies when it's the last worker
 				if (--_running == 0)
@@ -350,7 +350,7 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 		}
 	}
 }
-LUX_CURR_INLINE void lux::thread_pool::_insert(std::unique_ptr<vTask>&& task) {
+LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	//	allocates new node
 	NODE* nn = new NODE{ nullptr, 0 };
 
