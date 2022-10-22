@@ -218,13 +218,13 @@ LUX_CURR_INLINE lux::tsize_t lux::thread_pool::workers() const noexcept {
 	return _wrkc;
 }
 LUX_CURR_INLINE lux::tstate_t lux::thread_pool::state() const noexcept {
-	return _state.load();
+	return _state.load(std::memory_order_relaxed);
 }
 LUX_CURR_INLINE size_t lux::thread_pool::running_tasks() const noexcept {
-	return _running.load();
+	return _running.load(std::memory_order_relaxed);
 }
 LUX_CURR_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
-	return _size.load();
+	return _size.load(std::memory_order_relaxed);
 }
 
 //	Task
@@ -282,13 +282,13 @@ struct lux::thread_pool::NODE
 
 LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	//	sets to TERMINATED
-	_state.store(TS_TERMINATED);
+	_state.store(TS_TERMINATED, std::memory_order_relaxed);
 	_state.notify_all();
 	//	notifies blocked workers
-	_size.store(1);
+	_size.store(1, std::memory_order_relaxed);
 	_size.notify_all();
 	//	notifies blocked waiting threads
-	_running.store(0);
+	_running.store(0, std::memory_order_relaxed);
 	_running.notify_all();
 
 	//	closes the workers
@@ -299,9 +299,9 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	}
 
 	//	clears the queue
-	auto curr = _head.load();
+	auto curr = _head.load(std::memory_order_relaxed);
 	while (curr) {
-		auto tmp = curr->_next.load();
+		auto tmp = curr->_next.load(std::memory_order_relaxed);
 		delete curr;
 		curr = tmp;
 	}
@@ -310,8 +310,8 @@ LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num)
 	: _state{ TS_RUNNING }, _wrkc{ num }, _size{ 0 }, _running{ 0 } {
 	//	inits the queue
 	NODE* nn = new NODE{ nullptr, nullptr };
-	_head.store(nn);
-	_tail.store(nn);
+	_head.store(nn, std::memory_order_relaxed);
+	_tail.store(nn, std::memory_order_relaxed);
 
 	//	starts the workers
 	_wrks = std::make_unique<std::jthread[]>(_wrkc);
