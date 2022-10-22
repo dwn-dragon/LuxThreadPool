@@ -83,11 +83,26 @@ namespace lux
 		template< class Fn, class... Args >
 		std::future<std::invoke_result_t<Fn, Args...>> submit(Fn&& fn, Args&&... args);
 
+		/**
+         * @brief Pauses the thread pool. Any task that is already running will not be paused, but the workers won't extract any other task from the underlying queue.
+         * This method will fail if the thread pool is already paused or terminated.
+         * 
+         * @return true Only when the thread pool has been paused
+         * @return false Otherwise
+         */
 		bool pause() noexcept;
+		/**
+         * @brief Unpauses the thread pool. Any sleeping worker will be woke up and resume the extraction-execution operations.
+         * This method will fail if the thread pool is already not paused or terminated.
+         * 
+         * @return true When the thread pool has been unpaused
+         * @return false Otherwise
+         */
 		bool unpause() noexcept;
 
 		/**
-		 * @brief Waits for every running and queued task to be executed.
+		 * @brief Waits for any task.
+		 * If the thread pool state is TS_PAUSED, it will only wait for the running tasks. If the thread pool state is TS_TERMINATED instead, it won't wait for any task.
 		 * 
 		 */
 		void wait_for_tasks() const noexcept;
