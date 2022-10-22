@@ -369,10 +369,16 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	_tail.compare_exchange_strong(cn, nn);
 	//	updates cn with the wanted value
 	cn->_data = std::move(task);
+
 	//	updates size as last
-	if (_size.fetch_add(1) == 0)
-		//	notifies
-		_size.notify_all();
+	//	notifies sleeping workers if not paused and queue was empty
+	if (state() != TS_PAUSED && _size.fetch_add(1) == 0) {
+		//	notifies 
+		auto notc = _wrkc - running_tasks();
+		//	notifies workers
+		for (tsize_t i = 0; i < notc; ++i)
+			_size.notify_one();
+	}
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
