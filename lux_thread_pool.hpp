@@ -374,7 +374,7 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 }
 LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	//	allocates new node
-	NODE* nn = new NODE{ nullptr, 0 };
+	NODE* nn = new NODE{ nullptr, nullptr };
 
 	//	appends the new node
 	NODE *null, *cn;
