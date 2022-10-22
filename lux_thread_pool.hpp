@@ -291,6 +291,13 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	_running.store(0);
 	_running.notify_all();
 
+	//	closes the workers
+	for	(tsize_t i = 0; i < _wrkc; ++i) {
+		_wrks[i].request_stop();
+		if (_wrks[i].joinable())
+			_wrks[i].join();
+	}
+
 	//	clears the queue
 	auto curr = _head.load();
 	while (curr) {
@@ -307,7 +314,7 @@ LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num)
 	_tail.store(nn);
 
 	//	starts the workers
-	_wrks = std::make_unique<std::jthread[]>(num);
+	_wrks = std::make_unique<std::jthread[]>(_wrkc);
 	for (tsize_t i = 0; i < _wrkc; ++i)
 		_wrks[i] = std::jthread{ std::bind_front(&lux::thread_pool::_worker_main, this, i) };
 }
