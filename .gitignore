@@ -31,5 +31,8 @@
 *.out
 *.app
 
-# CMake
+# Misc directories
+.vs
+.vscode
 build
+out
