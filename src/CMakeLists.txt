@@ -3,12 +3,6 @@
 
 add_executable(Demo)
 
-set_target_properties(
-	Demo PROPERTIES
-	CXX_STANDARD 20
-	CXX_STANDARD_REQUIRED ON
-)
-
 target_include_directories(
 	Demo 
 	PRIVATE ${CMAKE_SOURCE_DIR}
