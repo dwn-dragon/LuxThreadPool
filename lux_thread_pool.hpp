@@ -344,27 +344,48 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 				//	do something
 			}
 			else if (_size.compare_exchange_weak(sz, sz - 1)) {
-				//	element reserved
-				//	removes head from the queue
-				auto cn = _head.load();
-				while (!_head.compare_exchange_weak(cn, cn->_next.load())) {
-					//	compare_exchange_weak already gives the new head
-					//	do something
+				//	an element is now reserved for the current worker
+				//	loops until it has a valid condition
+				while (true) {
+					auto cn = _head.load();
+					if (cn == nullptr) {
+						//	the current head is nullptr
+						if (state() == TS_TERMINATED) {
+							//	thread pool has been terminated
+							break;
+						}
+						else {
+							//	another thread has extracted the head
+							//	do something
+						}
+					}
+					else {
+						//	the node is valid
+						//	tries to lock the node
+						if (_head.compare_exchange_weak(cn, nullptr)) {
+							//	immediately replaces nullptr with the next value
+							_head.store(cn->_next.load());
+							
+							//	the node is locked
+							//	extracts the task
+							auto task = std::move(cn->_data);
+							//	frees the memory
+							delete cn;
+
+							//	increases the working threads
+							++_running;
+							//	runs the task
+							if (task) (*task)();
+
+							//	notifies when it's the last worker
+							if (--_running == 0)
+								_running.notify_all();
+
+							//	leaves the loop
+							break;
+						}
+					}
 				}
-
-				//	the node is now locked
-				auto task = std::move(cn->_data);
-				//	frees the memory
-				delete cn;
-
-				//	increases the working threads
-				++_running;
-				//	runs the task
-				if (task) (*task)();
-
-				//	notifies when it's the last worker
-				if (--_running == 0)
-					_running.notify_all();
 			}
 		}
 		default:
