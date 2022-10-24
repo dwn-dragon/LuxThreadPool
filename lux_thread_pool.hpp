@@ -72,6 +72,14 @@ namespace lux
 
 	public:
 		/**
+		 * @brief 
+		 * 
+		 * @param task 
+		 * @return true 
+		 * @return false 
+		 */
+		bool push_task(std::shared_ptr<class vTask> task);
+		/**
 		 * @brief Submits a callable with its args for execution.
 		 * 
 		 * @tparam Fn Callable type
@@ -424,6 +432,14 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 		for (tsize_t i = 0; i < notc; ++i)
 			_size.notify_one();
 	}
+}
+
+LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
+	if (!task)
+		return false;
+		
+	_insert(std::move(task));
+	return true;
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
