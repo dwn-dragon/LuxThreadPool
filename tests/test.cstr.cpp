@@ -1,5 +1,4 @@
-#include <iostream>
-#include <lux_thread_pool.hpp>
+#include <tests/test.misc.hpp>
 
 int main(int argc, char const *argv[]) {
 	try {

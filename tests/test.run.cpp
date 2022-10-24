@@ -1,7 +1,4 @@
-#include <iostream>
-#include <fstream>
-
-#include <lux_thread_pool.hpp>
+#include <tests/test.misc.hpp>
 
 int fact(int val) {
 	auto res = 1;
