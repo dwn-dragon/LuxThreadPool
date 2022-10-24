@@ -356,6 +356,9 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 				//	an element is now reserved for the current worker
 				//	loops until it has a valid condition
 				while (true) {
+					//	increases the working threads
+					++_running;
+					
 					auto cn = _head.load();
 					if (cn == nullptr) {
 						//	the current head is nullptr
@@ -374,20 +377,18 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 							//	frees the memory
 							delete cn;
 
-							//	increases the working threads
-							++_running;
 							//	runs the task
 							if (task) (*task)();
-
-							//	notifies when it's the last worker
-							if (--_running == 0)
-								_running.notify_all();
 
 							//	leaves the loop
 							break;
 						}
 					}
 				}
+							
+				//	notifies when it's the last worker
+				if (--_running == 0)
+					_running.notify_all();
 			}
 		}
 		default:
