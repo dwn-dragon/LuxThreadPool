@@ -24,4 +24,3 @@ add_test(NAME Construction COMMAND test.cstr)
 
 add_test(NAME Run.100 COMMAND test.run 100)
 add_test(NAME Run.10000 COMMAND test.run 10000)
-add_test(NAME Run.1000000 COMMAND test.run 1000000)
