@@ -1,11 +1,9 @@
 #include <tests/test.misc.hpp>
+#include <fstream>
 
-int fact(int val) {
-	auto res = 1;
-	for (size_t i = 2; i < val; i++)
-		res = res * static_cast<int>(i);
-
-	return res;
+std::atomic<size_t> count = 0;
+void incr() {
+	++count;
 }
 
 int main(int argc, char const *argv[]) {
@@ -15,8 +13,9 @@ int main(int argc, char const *argv[]) {
 	
 	lux::thread_pool tpool;
 	for (size_t i = 0; i < cycles; i++)
-		tpool.submit(fact, rand() % 10);
+		tpool.submit(incr);
 	tpool.wait_for_tasks();
 
+	assert(cycles, count);
 	return 0;
 }
