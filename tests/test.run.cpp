@@ -18,7 +18,7 @@ int main(int argc, char const *argv[]) {
 	
 	lux::thread_pool tpool;
 	for (size_t i = 0; i < cycles; i++)
-		tpool.submit(fact, rand());
+		tpool.submit(fact, rand() % 10);
 	tpool.wait_for_tasks();
 
 	return 0;
