@@ -419,7 +419,7 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 
 	//	updates size as last
 	//	notifies sleeping workers if not paused and queue was empty
-	if (state() != TS_PAUSED && _size.fetch_add(1) == 0) {
+	if (_size.fetch_add(1) == 0 && state() != TS_PAUSED) {
 		//	notifies 
 		auto notc = _wrkc - running_tasks();
 		//	notifies workers
