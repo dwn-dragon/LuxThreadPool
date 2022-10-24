@@ -429,20 +429,26 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
+	//	checks if the task is valid
 	if (!task)
 		return false;
-		
+	//	inserts the task in the queue
 	_insert(std::move(task));
 	return true;
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
+	//	temp variable
 	tstate_t tmp = TS_RUNNING;
+	//	sets the state to paused
 	return _state.compare_exchange_strong(tmp, TS_PAUSED);
 }
 LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
+	//	temp variable
 	tstate_t tmp = TS_PAUSED;
+	//	sets the state to unpaused
 	if (_state.compare_exchange_strong(tmp, TS_RUNNING)) {
+		// notifies any sleeping worker
 		_state.notify_all();
 		return true;
 	}
