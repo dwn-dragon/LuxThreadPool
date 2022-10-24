@@ -412,10 +412,8 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	} while (!cn->_next.compare_exchange_weak(null, nn));
 
 	//	the node is now locked
-	//	avoids errors when tail is different than cn
-	auto tmp = cn;
 	//	updates tail as first to allow more insertions
-	_tail.compare_exchange_strong(tmp, nn);
+	_tail.store(nn);
 	//	updates cn with the wanted value
 	cn->_data = std::move(task);
 
