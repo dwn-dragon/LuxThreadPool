@@ -458,20 +458,20 @@ LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
 LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 	//	thread pool has been terminated
 	while (true) {
-		//	queue has been terminated
-		if (state() == TS_TERMINATED)
-			break;
-
 		//	gets running tasks count
 		auto rt = running_tasks();
 		if (rt == 0) {
 			//	no running task
+			//	gets thread pool state
+			auto st = state();
+			if (st == TS_TERMINATED || st == TS_PAUSED)
+				//	thread pool is terminated or paused
+				break;
 			//	gets queued tasks
 			auto qt = queued_tasks();
-			if (qt == 0 || state() == TS_PAUSED) {
+			if (qt == 0)
 				//	no queued tasks
 				break;
-			}
 		}
 		else {
 			//	workers are running tasks
