@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 
 #include <config.h>
 #include <lux_thread_pool.hpp>
