@@ -295,9 +295,6 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	//	notifies blocked workers
 	_size.store(1, std::memory_order_relaxed);
 	_size.notify_all();
-	//	notifies blocked waiting threads
-	_running.store(0, std::memory_order_relaxed);
-	_running.notify_all();
 
 	//	closes the workers
 	for	(tsize_t i = 0; i < _wrkc; ++i) {
@@ -305,6 +302,10 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 		if (_wrks[i].joinable())
 			_wrks[i].join();
 	}
+
+	//	notifies blocked waiting threads
+	_running.store(0, std::memory_order_relaxed);
+	_running.notify_all();
 
 	//	clears the queue
 	auto curr = _head.load(std::memory_order_relaxed);
@@ -358,14 +359,7 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 					auto cn = _head.load();
 					if (cn == nullptr) {
 						//	the current head is nullptr
-						if (state() == TS_TERMINATED) {
-							//	thread pool has been terminated
-							break;
-						}
-						else {
-							//	another thread has extracted the head
-							//	do something
-						}
+						//	do something
 					}
 					else {
 						//	the node is valid
