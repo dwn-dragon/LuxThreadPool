@@ -205,6 +205,14 @@ namespace lux
 //	Templates
 //
 
+LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
+	//	checks if the task is valid
+	if (!task)
+		return false;
+	//	inserts the task in the queue
+	_insert(std::move(task));
+	return true;
+}
 template< class Fn, class... Args >
 LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool::submit(Fn&& fn, Args&&... args) {
 	if (state() == TS_TERMINATED)
@@ -426,15 +434,6 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 		for (tsize_t i = 0; i < notc; ++i)
 			_size.notify_one();
 	}
-}
-
-LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
-	//	checks if the task is valid
-	if (!task)
-		return false;
-	//	inserts the task in the queue
-	_insert(std::move(task));
-	return true;
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
