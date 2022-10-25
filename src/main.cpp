@@ -9,14 +9,16 @@ std::mutex m;
 size_t tot;
 std::chrono::duration<double, std::milli> sum;
 
-void _average() {
+void factorial(int val) {
+	//
 	auto str = std::chrono::steady_clock::now();
 
 	//	
-	auto val = rand();
+	unsigned long long res = 1;
+	for (size_t i = 0; i < val; i++)
+		res *= i;
+	
 	//
-	//std::this_thread::sleep_for( std::chrono::duration<double, std::milli>{ 0.01 } );
-
 	std::lock_guard lg{ m };
 	sum += std::chrono::steady_clock::now() - str;
 	++tot;
@@ -39,7 +41,7 @@ int main(int argc, char const *argv[]) {
 	auto str = std::chrono::steady_clock::now();
 	
 	for (size_t i = 0; i < 1000000; i++)
-		tpool.submit( _average );
+		tpool.submit( factorial, rand() % 10 );
 	tpool.wait_for_tasks();
 
 	std::chrono::duration<double, std::milli> dt = std::chrono::steady_clock::now() - str;
