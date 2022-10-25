@@ -366,44 +366,46 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 				//	queue is empty
 				//	do something
 			}
-			//	tries to reserve an element
-			else if (_size.compare_exchange_weak(sz, sz - 1)) {
-				//	an element is now reserved for the current worker
-				//	increases the working threads
+			else {
+				//	increases the working threads before reducing the size
 				++_running;
 
-				//	EXTRACTION
-				//	loads the head
-				auto cn = _head.load();
-				//	extracts a node
-				while (true) {
-					//	checks if a worker has already extracted the head
-					if (cn == nullptr) {
-						//	head is empty
-						//	reloads head
-						cn = _head.load();
-					}
-					else {
-						//	head is valid
-						//	tries to lock the head
-						if (_head.compare_exchange_weak(cn, nullptr)) {
-							//	replaces nullptr with the next node
-							_head.store(cn->_next.load());
-							//	leaves the cycle
-							break;
+				//	tries to reserve an element
+				if (_size.compare_exchange_weak(sz, sz - 1)) {
+					//	an element is now reserved for the current worker
+					//	EXTRACTION
+					//	loads the head
+					auto cn = _head.load();
+					//	extracts a node
+					while (true) {
+						//	checks if a worker has already extracted the head
+						if (cn == nullptr) {
+							//	head is empty
+							//	reloads head
+							cn = _head.load();
+						}
+						else {
+							//	head is valid
+							//	tries to lock the head
+							if (_head.compare_exchange_weak(cn, nullptr)) {
+								//	replaces nullptr with the next node
+								_head.store(cn->_next.load());
+								//	leaves the cycle
+								break;
+							}
 						}
 					}
-				}
 
-				//	EXECUTION
-				//	the node is locked
-				//	extracts the task
-				auto task = std::move(cn->_data);
-				//	frees the memory
-				delete cn;
-				//	runs the task
-				if (task) (*task)();
-						
+					//	EXECUTION
+					//	the node is locked
+					//	extracts the task
+					auto task = std::move(cn->_data);
+					//	frees the memory
+					delete cn;
+					//	runs the task
+					if (task) (*task)();
+				}
+				
 				//	sets worker as not running
 				//	notifies when it's the last worker
 				if (--_running == 0)
