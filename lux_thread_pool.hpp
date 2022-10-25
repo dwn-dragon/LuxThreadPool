@@ -234,13 +234,13 @@ LUX_CURR_INLINE lux::tsize_t lux::thread_pool::workers() const noexcept {
 	return _wrkc;
 }
 LUX_CURR_INLINE lux::tstate_t lux::thread_pool::state() const noexcept {
-	return _state.load(std::memory_order_relaxed);
+	return _state.load();
 }
 LUX_CURR_INLINE size_t lux::thread_pool::running_tasks() const noexcept {
-	return _running.load(std::memory_order_relaxed);
+	return _running.load();
 }
 LUX_CURR_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
-	return _size.load(std::memory_order_relaxed);
+	return _size.load();
 }
 
 //	Task
@@ -345,54 +345,64 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 		// waits for a task
 		_size.wait(0);
 
+		//	handles the state
 		switch (state())
 		{
+		//	thread pool has been terminated
 		case TS_TERMINATED:
 			return;
 
+		//	thread pool has been paused
 		case TS_PAUSED:
 			_state.wait(TS_PAUSED);
 			break;
 
+		//	thread pool is running
 		case TS_RUNNING: {
-			//	tries to reserve an element
+			//	RESERVATION
+			//	makes sure the queue has an element
 			auto sz = _size.load();
 			if (sz == 0) {
+				//	queue is empty
 				//	do something
 			}
+			//	tries to reserve an element
 			else if (_size.compare_exchange_weak(sz, sz - 1)) {
 				//	an element is now reserved for the current worker
 				//	increases the working threads
 				++_running;
-				//	loops until it has a valid condition
+
+				//	EXTRACTION
+				//	loads the head
+				auto cn = _head.load();
+				//	extracts a node
 				while (true) {
-					//	loads the head
-					auto cn = _head.load();
+					//	checks if a worker has already extracted the head
 					if (cn == nullptr) {
-						//	the current head is nullptr
-						//	do something
+						//	head is empty
+						//	reloads head
+						cn = _head.load();
 					}
 					else {
-						//	the node is valid
-						//	tries to lock the node
+						//	head is valid
+						//	tries to lock the head
 						if (_head.compare_exchange_weak(cn, nullptr)) {
-							//	immediately replaces nullptr with the next value
+							//	replaces nullptr with the next node
 							_head.store(cn->_next.load());
-							
-							//	the node is locked
-							//	extracts the task
-							auto task = std::move(cn->_data);
-							//	frees the memory
-							delete cn;
-
-							//	runs the task
-							if (task) (*task)();
-
-							//	leaves the loop
+							//	leaves the cycle
 							break;
 						}
 					}
 				}
+
+				//	EXECUTION
+				//	the node is locked
+				//	extracts the task
+				auto task = std::move(cn->_data);
+				//	frees the memory
+				delete cn;
+				//	runs the task
+				if (task) (*task)();
 						
 				//	sets worker as not running
 				//	notifies when it's the last worker
