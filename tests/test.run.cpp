@@ -1,5 +1,4 @@
 #include <tests/test.misc.hpp>
-#include <fstream>
 
 std::atomic<size_t> count = 0;
 void incr() {
