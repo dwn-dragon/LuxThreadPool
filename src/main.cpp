@@ -40,7 +40,6 @@ int main(int argc, char const *argv[]) {
 	
 	for (size_t i = 0; i < 1000000; i++)
 		tpool.submit( _average );
-		
 	tpool.wait_for_tasks();
 
 	std::chrono::duration<double, std::milli> dt = std::chrono::steady_clock::now() - str;
