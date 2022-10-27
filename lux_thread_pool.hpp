@@ -83,6 +83,12 @@ namespace lux
 		 */
 		tsize_t workers() const noexcept;
 		
+		/**
+		 * @brief Returns the general state of the queue.
+		 * It has both the current state and the number of queued tasks.
+		 * 
+		 * @return data_t The general state of the queue
+		 */
 		data_t data() const noexcept;
 		/**
 		 * @brief Returns the current state of the thread pool.
