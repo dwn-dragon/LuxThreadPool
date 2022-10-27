@@ -29,7 +29,14 @@ namespace lux
 
 	class thread_pool
 	{
+		struct NODE;
 	public:
+		struct data_t
+		{
+			size_t size;
+			tstate_t state;
+		};
+
 		~thread_pool();
 
 		/**
@@ -39,6 +46,11 @@ namespace lux
 		 */
 		thread_pool(const tsize_t num = std::thread::hardware_concurrency());
 
+	private:
+		void _extract_run();
+		void _worker_main(tsize_t pos, std::stop_token stoken);
+
+	public:
 		/**
 		 * @brief Retuns the number of workers.
 		 * 
@@ -46,6 +58,7 @@ namespace lux
 		 */
 		tsize_t workers() const noexcept;
 		
+		data_t data() const noexcept;
 		/**
 		 * @brief Returns the current state of the thread pool.
 		 * 
@@ -67,7 +80,6 @@ namespace lux
 		size_t queued_tasks() const noexcept;
 
 	private:
-		void _worker_main(tsize_t pos, std::stop_token stoken);
 		void _insert(std::shared_ptr<class vTask>&& task);
 
 	public:
@@ -116,21 +128,19 @@ namespace lux
 		void wait_for_tasks() const noexcept;
 
 	private:
-		struct NODE;
-
 		//	thread pool state
-		std::atomic<tstate_t> _state;
+		std::atomic<data_t> _data;
 
 		//	workers
 		tsize_t _wrkc;
 		std::unique_ptr<std::jthread[]> _wrks;
-		std::atomic<size_t> _running;
 
-		//	queue size
-		std::atomic<size_t> _size;
-		//	queue ends
+		//	queue
 		std::atomic<NODE*> _head;
 		std::atomic<NODE*> _tail;
+
+		//	misc
+		std::atomic<size_t> _running;
 	};
 
 	/**
@@ -233,14 +243,17 @@ LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool:
 LUX_CURR_INLINE lux::tsize_t lux::thread_pool::workers() const noexcept {
 	return _wrkc;
 }
+LUX_CURR_INLINE lux::thread_pool::data_t lux::thread_pool::data() const noexcept {
+	return _data.load();
+}
 LUX_CURR_INLINE lux::tstate_t lux::thread_pool::state() const noexcept {
-	return _state.load();
+	return data().state;
 }
 LUX_CURR_INLINE size_t lux::thread_pool::running_tasks() const noexcept {
 	return _running.load();
 }
 LUX_CURR_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
-	return _size.load();
+	return data().size;
 }
 
 //	Task
@@ -297,12 +310,14 @@ struct lux::thread_pool::NODE
 };
 
 LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
-	//	sets to TERMINATED
-	_state.store(TS_TERMINATED, std::memory_order_relaxed);
-	_state.notify_all();
-	//	notifies blocked workers
-	_size.store(1, std::memory_order_relaxed);
-	_size.notify_all();
+	//	updates the data
+	data_t data = _data.load(), ndata{ data.size, TS_TERMINATED };
+	while (!_data.compare_exchange_weak(data, ndata)) {
+		ndata = { data.size, TS_TERMINATED };
+	}
+
+	//	notifies waiting workers
+	_data.notify_all();
 
 	//	closes the workers
 	for	(tsize_t i = 0; i < _wrkc; ++i) {
@@ -310,10 +325,6 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 		if (_wrks[i].joinable())
 			_wrks[i].join();
 	}
-
-	//	notifies blocked waiting threads
-	_running.store(0, std::memory_order_relaxed);
-	_running.notify_all();
 
 	//	clears the queue
 	auto curr = _head.load(std::memory_order_relaxed);
@@ -324,7 +335,7 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 	}
 }
 LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num) 
-	: _state{ TS_RUNNING }, _wrkc{ num }, _size{ 0 }, _running{ 0 } {
+	: _data{{ 0, TS_RUNNING }}, _wrkc{ num }, _running{ 0 } {
 	//	inits the queue
 	NODE* nn = new NODE{ nullptr, nullptr };
 	_head.store(nn, std::memory_order_relaxed);
@@ -335,18 +346,56 @@ LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num)
 	for (tsize_t i = 0; i < _wrkc; ++i)
 		_wrks[i] = std::jthread{ std::bind_front(&lux::thread_pool::_worker_main, this, i) };
 }
+
+LUX_CURR_INLINE void lux::thread_pool::_extract_run() {
+	//	EXTRACTION
+	//	loads the head
+	auto cn = _head.load();
+	//	extracts a node
+	while (true) {
+		//	checks if a worker has already extracted the head
+		if (cn == nullptr) {
+			//	head is empty
+			//	reloads head
+			cn = _head.load();
+		}
+		else {
+			//	head is valid
+			//	tries to lock the head
+			if (_head.compare_exchange_weak(cn, nullptr)) {
+				//	replaces nullptr with the next node
+				_head.store(cn->_next.load());
+				//	leaves the cycle
+				break;
+			}
+		}
+	}
+
+	//	EXECUTION
+	//	the node is locked
+	//	extracts the task
+	auto task = std::move(cn->_data);
+	//	frees the memory
+	delete cn;
+	//	runs the task
+	if (task) (*task)();
+}
 LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token stoken) {
 	//	worker loop
 	while (true) {
+		//	data
+		data_t data{ 0, TS_RUNNING };
+		// waits for a task
+		_data.wait(data);
+
 		//	stop has been requested
 		if (stoken.stop_requested())
 			break;
 
-		// waits for a task
-		_size.wait(0);
-
+		//	loads the actual data
+		data = _data.load();
 		//	handles the state
-		switch (state())
+		switch (data.state)
 		{
 		//	thread pool has been terminated
 		case TS_TERMINATED:
@@ -354,15 +403,14 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 
 		//	thread pool has been paused
 		case TS_PAUSED:
-			_state.wait(TS_PAUSED);
+			_data.wait(data);
 			break;
 
 		//	thread pool is running
 		case TS_RUNNING: {
 			//	RESERVATION
 			//	makes sure the queue has an element
-			auto sz = _size.load();
-			if (sz == 0) {
+			if (data.size == 0) {
 				//	queue is empty
 				//	do something
 			}
@@ -371,41 +419,10 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 				++_running;
 
 				//	tries to reserve an element
-				if (_size.compare_exchange_weak(sz, sz - 1)) {
+				data_t ndata{ data.size - 1, TS_RUNNING };
+				if (_data.compare_exchange_weak(data, ndata))
 					//	an element is now reserved for the current worker
-					//	EXTRACTION
-					//	loads the head
-					auto cn = _head.load();
-					//	extracts a node
-					while (true) {
-						//	checks if a worker has already extracted the head
-						if (cn == nullptr) {
-							//	head is empty
-							//	reloads head
-							cn = _head.load();
-						}
-						else {
-							//	head is valid
-							//	tries to lock the head
-							if (_head.compare_exchange_weak(cn, nullptr)) {
-								//	replaces nullptr with the next node
-								_head.store(cn->_next.load());
-								//	leaves the cycle
-								break;
-							}
-						}
-					}
-
-					//	EXECUTION
-					//	the node is locked
-					//	extracts the task
-					auto task = std::move(cn->_data);
-					//	frees the memory
-					delete cn;
-					//	runs the task
-					if (task) (*task)();
-				}
-				
+					_extract_run();
 				//	sets worker as not running
 				//	notifies when it's the last worker
 				if (--_running == 0)
@@ -438,33 +455,52 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	cn->_data = std::move(task);
 
 	//	updates size as last
+	data_t data = _data.load(), ndata{ data.size + 1, data.state };
+	//	replaces data with new data
+	while (!_data.compare_exchange_weak(data, ndata)) {
+		//	recreates new data
+		ndata = { data.size + 1, data.state };
+	}
+
 	//	notifies sleeping workers if not paused and queue was empty
-	if (_size.fetch_add(1) == 0 && state() != TS_PAUSED) {
+	if (data.size == 0 && data.state != TS_PAUSED) {
 		//	notifies 
 		auto notc = _wrkc - running_tasks();
 		//	notifies workers
 		for (tsize_t i = 0; i < notc; ++i)
-			_size.notify_one();
+			_data.notify_one();
 	}
 }
 
 LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
-	//	temp variable
-	tstate_t tmp = TS_RUNNING;
-	//	sets the state to paused
-	return _state.compare_exchange_strong(tmp, TS_PAUSED);
+	while (true) {
+		auto data = _data.load();
+		switch (data.state)
+		{
+		case TS_RUNNING:
+			if (_data.compare_exchange_weak(data, { data.size, TS_PAUSED }))
+				return true;
+		
+		default:
+			return false;
+		}
+	}
 }
 LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
-	//	temp variable
-	tstate_t tmp = TS_PAUSED;
-	//	sets the state to unpaused
-	if (_state.compare_exchange_strong(tmp, TS_RUNNING)) {
-		// notifies any sleeping worker
-		_state.notify_all();
-		return true;
+	while (true) {
+		auto data = _data.load();
+		switch (data.state)
+		{
+		case TS_PAUSED:
+			if (_data.compare_exchange_weak(data, { data.size, TS_RUNNING })) {
+				_data.notify_all();
+				return true;
+			}
+		
+		default:
+			return false;
+		}
 	}
-
-	return false;
 }
 LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 	//	thread pool has been terminated
@@ -473,16 +509,17 @@ LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 		auto rt = running_tasks();
 		if (rt == 0) {
 			//	no running task
-			//	gets thread pool state
-			auto st = state();
-			if (st == TS_TERMINATED || st == TS_PAUSED)
-				//	thread pool is terminated or paused
-				break;
-			//	gets queued tasks
-			auto qt = queued_tasks();
-			if (qt == 0)
-				//	no queued tasks
-				break;
+			auto data = _data.load();
+			switch (data.state)
+			{
+			case TS_PAUSED:
+			case TS_TERMINATED:
+				return;
+			
+			default:
+				if (data.size == 0)
+					return;
+			}
 		}
 		else {
 			//	workers are running tasks

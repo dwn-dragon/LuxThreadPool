@@ -42,8 +42,12 @@ int main(int argc, char const *argv[]) {
 	
 	for (size_t i = 0; i < 1000000; i++)
 		tpool.submit( factorial, rand() % 10 );
-	tpool.wait_for_tasks();
 
+//*
+	tpool.wait_for_tasks();
+/*/
+	std::this_thread::sleep_for( std::chrono::seconds{ 1 });
+/**/
 	std::chrono::duration<double, std::milli> dt = std::chrono::steady_clock::now() - str;
 	std::cout << "done\n" << std::endl;
 

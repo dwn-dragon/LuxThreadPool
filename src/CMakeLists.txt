@@ -3,6 +3,7 @@
 
 add_executable(Demo)
 
+target_link_libraries(Demo PRIVATE atomic)
 set_target_properties(
 	Demo PROPERTIES
 	CXX_STANDARD 20
