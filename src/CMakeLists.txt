@@ -3,7 +3,10 @@
 
 add_executable(Demo)
 
-target_link_libraries(Demo PRIVATE atomic)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	target_link_libraries(Demo PRIVATE atomic)
+endif()
+
 set_target_properties(
 	Demo PROPERTIES
 	CXX_STANDARD 20
