@@ -25,7 +25,7 @@ void factorial(int val) {
 }
 
 int main(int argc, char const *argv[]) {
-	std::cout << "version: " << PROJECT_VER_MAJOR << "." << PROJECT_VER_MINOR << "." << PROJECT_VER_PATCH << "\n";
+	std::cout << "version: " << PROJECT_VER_MAJOR << "." << PROJECT_VER_MINOR << "." << PROJECT_VER_PATCH << "." << PROJECT_VER_TWEAK << "\n";
 	std::cout << "hardware concurrency: " << std::thread::hardware_concurrency() << "\n";
 	std::cout << "lock free: " << ((std::atomic<size_t>::is_always_lock_free && std::atomic<void*>::is_always_lock_free) ? "true" : "false") << "\n" << std::endl;
 
