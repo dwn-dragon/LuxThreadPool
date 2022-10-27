@@ -17,9 +17,21 @@
 namespace lux
 {
 
+	/**
+     * @brief Length type for threads
+     * 
+     */
 	using tsize_t = decltype(std::thread::hardware_concurrency());
+	/**
+     * @brief State type of a thread pool
+     * 
+     */
 	using tstate_t = uint8_t;
 
+	/**
+     * @brief Valid states
+     * 
+     */
 	enum : tstate_t
 	{
 		TS_RUNNING,
@@ -31,11 +43,24 @@ namespace lux
 	{
 		struct NODE;
 	public:
-		struct data_t
-		{
-			size_t size;
-			tstate_t state;
-		};
+		/**
+         * @brief Used to store the general state of a thread pool.
+         * It has both the size of the underlying queue and the state. It allows a more reactive response from the workers by waiting both on the state and the number of tasks at the same time.
+         * 
+         */
+        struct data_t
+        {
+            /**
+             * @brief The size of the underlying queue of the thread pool.
+             * 
+             */
+            size_t size;
+            /**
+             * @brief The state of the thread pool.
+             * 
+             */
+            tstate_t state;
+        };
 
 		~thread_pool();
 
