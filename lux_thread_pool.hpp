@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef LUX_THREAD_POOL_INCL
-#define LUX_THREAD_POOL_INCL
+#ifndef LUX_INCLUDE_THREAD_POOL
+#define LUX_INCLUDE_THREAD_POOL
 
 #undef LUX_CURR_INLINE
 
