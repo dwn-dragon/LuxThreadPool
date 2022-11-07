@@ -3,7 +3,7 @@
 #ifndef LUX_INCLUDE_THREAD_POOL
 #define LUX_INCLUDE_THREAD_POOL
 
-#undef LUX_CURR_INLINE
+#undef LUX_LOCAL_INLINE
 
 //
 //	Header
@@ -239,14 +239,14 @@ namespace lux
 //	Template
 //	
 
-#undef LUX_CURR_INLINE
-#define LUX_CURR_INLINE inline
+#undef LUX_LOCAL_INLINE
+#define LUX_LOCAL_INLINE inline
 
 //	Thread Pool
 //	Templates
 //
 
-LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
+LUX_LOCAL_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
 	//	checks if the task is valid
 	if (!task)
 		return false;
@@ -255,7 +255,7 @@ LUX_CURR_INLINE bool lux::thread_pool::push_task(std::shared_ptr<vTask> task) {
 	return true;
 }
 template< class Fn, class... Args >
-LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool::submit(Fn&& fn, Args&&... args) {
+LUX_LOCAL_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool::submit(Fn&& fn, Args&&... args) {
 	if (state() == TS_TERMINATED)
 		throw std::runtime_error{ "thread pool has been terminated" };
 
@@ -271,19 +271,19 @@ LUX_CURR_INLINE std::future<std::invoke_result_t<Fn, Args...>> lux::thread_pool:
 //	Inline
 //	
 
-LUX_CURR_INLINE lux::tsize_t lux::thread_pool::workers() const noexcept {
+LUX_LOCAL_INLINE lux::tsize_t lux::thread_pool::workers() const noexcept {
 	return _wrkc;
 }
-LUX_CURR_INLINE lux::thread_pool::data_t lux::thread_pool::data() const noexcept {
+LUX_LOCAL_INLINE lux::thread_pool::data_t lux::thread_pool::data() const noexcept {
 	return _data.load();
 }
-LUX_CURR_INLINE lux::tstate_t lux::thread_pool::state() const noexcept {
+LUX_LOCAL_INLINE lux::tstate_t lux::thread_pool::state() const noexcept {
 	return data().state;
 }
-LUX_CURR_INLINE size_t lux::thread_pool::running_tasks() const noexcept {
+LUX_LOCAL_INLINE size_t lux::thread_pool::running_tasks() const noexcept {
 	return _running.load();
 }
-LUX_CURR_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
+LUX_LOCAL_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
 	return data().size;
 }
 
@@ -293,15 +293,15 @@ LUX_CURR_INLINE size_t lux::thread_pool::queued_tasks() const noexcept {
 
 template< class Ty >
 template< class Fn, class... Args >
-LUX_CURR_INLINE lux::Task<Ty>::Task(Fn&& fn, Args&&... args) 
+LUX_LOCAL_INLINE lux::Task<Ty>::Task(Fn&& fn, Args&&... args) 
 	: _fn{ std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...) } {
 }
 template< class Ty >
-LUX_CURR_INLINE std::future<Ty> lux::Task<Ty>::future() {
+LUX_LOCAL_INLINE std::future<Ty> lux::Task<Ty>::future() {
 	return _prom.get_future();
 }
 template< class Ty >
-LUX_CURR_INLINE void lux::Task<Ty>::operator()() noexcept {
+LUX_LOCAL_INLINE void lux::Task<Ty>::operator()() noexcept {
 	try {
 		if constexpr (std::is_void_v<Ty>) {
 			_fn();
@@ -321,17 +321,18 @@ LUX_CURR_INLINE void lux::Task<Ty>::operator()() noexcept {
 	}	
 }
 
+#undef LUX_LOCAL_INLINE
+
 //
 //	Source
 //
 
-#undef LUX_CURR_INLINE
 #if defined( LUX_INLINE_SOURCE ) || defined( LUX_SOURCE )
 
 #if defined( LUX_INLINE_SOURCE )
-#define LUX_CURR_INLINE	inline
+#define LUX_LOCAL_INLINE	inline
 #else
-#define LUX_CURR_INLINE 
+#define LUX_LOCAL_INLINE 
 #endif
 
 struct lux::thread_pool::NODE
@@ -340,7 +341,7 @@ struct lux::thread_pool::NODE
 	std::shared_ptr<lux::vTask> _data;
 };
 
-LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
+LUX_LOCAL_INLINE lux::thread_pool::~thread_pool() {
 	//	updates the data
 	data_t data = _data.load(), ndata{ data.size, TS_TERMINATED };
 	while (!_data.compare_exchange_weak(data, ndata)) {
@@ -365,7 +366,7 @@ LUX_CURR_INLINE lux::thread_pool::~thread_pool() {
 		curr = tmp;
 	}
 }
-LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num) 
+LUX_LOCAL_INLINE lux::thread_pool::thread_pool(const tsize_t num) 
 	: _data{{ 0, TS_RUNNING }}, _wrkc{ num }, _running{ 0 } {
 	//	inits the queue
 	NODE* nn = new NODE{ nullptr, nullptr };
@@ -378,7 +379,7 @@ LUX_CURR_INLINE lux::thread_pool::thread_pool(const tsize_t num)
 		_wrks[i] = std::jthread{ std::bind_front(&lux::thread_pool::_worker_main, this, i) };
 }
 
-LUX_CURR_INLINE void lux::thread_pool::_extract_run() {
+LUX_LOCAL_INLINE void lux::thread_pool::_extract_run() {
 	//	EXTRACTION
 	//	loads the head
 	auto cn = _head.load();
@@ -411,7 +412,7 @@ LUX_CURR_INLINE void lux::thread_pool::_extract_run() {
 	//	runs the task
 	if (task) (*task)();
 }
-LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token stoken) {
+LUX_LOCAL_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token stoken) {
 	//	worker loop
 	while (true) {
 		//	data
@@ -465,7 +466,7 @@ LUX_CURR_INLINE void lux::thread_pool::_worker_main(tsize_t pos, std::stop_token
 		}
 	}
 }
-LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
+LUX_LOCAL_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	//	allocates new node
 	NODE* nn = new NODE{ nullptr, nullptr };
 
@@ -503,7 +504,7 @@ LUX_CURR_INLINE void lux::thread_pool::_insert(std::shared_ptr<vTask>&& task) {
 	}
 }
 
-LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
+LUX_LOCAL_INLINE bool lux::thread_pool::pause() noexcept {
 	while (true) {
 		auto data = _data.load();
 		switch (data.state)
@@ -517,7 +518,7 @@ LUX_CURR_INLINE bool lux::thread_pool::pause() noexcept {
 		}
 	}
 }
-LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
+LUX_LOCAL_INLINE bool lux::thread_pool::unpause() noexcept {
 	while (true) {
 		auto data = _data.load();
 		switch (data.state)
@@ -533,7 +534,7 @@ LUX_CURR_INLINE bool lux::thread_pool::unpause() noexcept {
 		}
 	}
 }
-LUX_CURR_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
+LUX_LOCAL_INLINE void lux::thread_pool::wait_for_tasks() const noexcept {
 	//	thread pool has been terminated
 	while (true) {
 		//	gets running tasks count
